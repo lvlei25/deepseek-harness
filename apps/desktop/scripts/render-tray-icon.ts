@@ -22,6 +22,15 @@ export const TRAY_ICON_PATHS = {
   output: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)),
 } as const
 
+/** Linux tray glyph edge, matching the panel at 1x; Electron scales it for HiDPI displays. */
+export const LINUX_TRAY_ICON_SIZE = 24
+
+/** Vector source and committed PNG output of the Linux tray icon. */
+export const TRAY_LINUX_ICON_PATHS = {
+  source: TRAY_ICON_PATHS.source,
+  output: fileURLToPath(new URL('../resources/tray-linux.png', import.meta.url)),
+} as const
+
 /** Coordinate space of the vector source; sharp's SVG density is scaled against it. */
 const SOURCE_EDGE = 1024
 const SOURCE_DENSITY = 72
@@ -109,15 +118,31 @@ export async function renderTrayIconEntries(svg: Buffer, sizes: readonly number[
   })))
 }
 
+/**
+ * Rasterize the vector source as a standalone PNG for the Linux tray, which reads PNG rather than ICO.
+ * @param svg - SVG document with a tray-glyph group.
+ * @param sizes - Bitmap edges to render; defaults to the Linux tray size.
+ * @returns PNG bytes for the single requested edge.
+ */
+export async function renderLinuxTrayIcon(svg: Buffer, size: number = LINUX_TRAY_ICON_SIZE): Promise<Buffer> {
+  const entries = await renderTrayIconEntries(svg, [size])
+  const entry = entries[0]
+  if (entry === undefined) throw new Error('tray icon: no bitmap was rendered')
+  return entry.png
+}
+
 function pngDimensions(png: Buffer): { width: number; height: number } {
   if (png.length < 24 || !png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) throw new Error('tray icon: bitmap is not a PNG stream')
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
 }
 
 async function main(): Promise<void> {
-  const entries = await renderTrayIconEntries(await readFile(TRAY_ICON_PATHS.source))
+  const source = await readFile(TRAY_ICON_PATHS.source)
+  const entries = await renderTrayIconEntries(source)
   await writeFile(TRAY_ICON_PATHS.output, packIco(entries))
   console.info(`tray icon: wrote ${TRAY_ICON_PATHS.output} with ${entries.map(entry => String(entry.size)).join(', ')} px bitmaps`)
+  await writeFile(TRAY_LINUX_ICON_PATHS.output, await renderLinuxTrayIcon(source))
+  console.info(`tray icon: wrote ${TRAY_LINUX_ICON_PATHS.output} at ${String(LINUX_TRAY_ICON_SIZE)} px`)
 }
 
 if (process.argv[1] !== undefined && import.meta.filename === resolve(process.argv[1])) await main()

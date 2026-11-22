@@ -10,6 +10,7 @@ import type { DesktopRelease } from '../src/release.ts'
 import { developmentRuntimeDirectory, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
 import { prepareDevelopmentProject } from './development-project.ts'
 import { prepareDevelopmentApp } from './development-app.ts'
+import { prepareDevelopmentDesktopEntry } from './development-desktop-entry.ts'
 import { preparePrimaryRuntime } from './prepare-primary-runtime.ts'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
@@ -81,6 +82,11 @@ async function launchElectron(): Promise<void> {
       mainPort, rendererPort, hostPort, openDevtools: environment.DSH_DESKTOP_OPEN_DEVTOOLS! })
     await run(executable, [], APP_ROOT, environment)
     return
+  }
+  if (process.platform === 'linux') {
+    const entry = prepareDevelopmentDesktopEntry({ electron, appRoot: APP_ROOT, directory: DEVELOPMENT_ROOT, home, userData,
+      mainPort, rendererPort, hostPort, openDevtools: environment.DSH_DESKTOP_OPEN_DEVTOOLS! })
+    console.log(`desktop development: registered desktop entry ${entry}`)
   }
   await run(electron, [
     `--inspect=127.0.0.1:${String(mainPort)}`,

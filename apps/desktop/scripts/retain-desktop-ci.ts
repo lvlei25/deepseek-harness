@@ -15,6 +15,14 @@ function required(env: NodeJS.ProcessEnv, name: string): string {
   return value
 }
 
+/** CI retention provisions only the mac and Windows release targets; Linux Desktop has no release workflow. */
+function releaseTarget(target: ReturnType<typeof resolveDesktopBuildTarget>): 'mac-arm64' | 'mac-x64' | 'win-x64' {
+  if (target === 'linux-x64' || target === 'linux-arm64') {
+    throw new Error(`desktop retention: unsupported release target ${target}`)
+  }
+  return target
+}
+
 /**
  * Resolve the persistent release root without assuming a particular user's home directory.
  * @param env Machine packaging configuration; an explicit releases directory overrides its sibling default.
@@ -33,7 +41,7 @@ export function desktopReleasesRoot(env: NodeJS.ProcessEnv): string {
  * @returns The exact label used by the later GitHub archival job.
  */
 export function resolveDesktopRetentionRunner(env: NodeJS.ProcessEnv): string {
-  const target = resolveDesktopBuildTarget(env)
+  const target = releaseTarget(resolveDesktopBuildTarget(env))
   const routes = desktopPublishRunnersSchema.parse(JSON.parse(required(env, 'DESKTOP_PUBLISH_RUNNERS')))
   const route = routes[required(env, 'RUNNER_NAME')]
   if (!route || !route.target.includes(target)
@@ -50,7 +58,7 @@ export function resolveDesktopRetentionRunner(env: NodeJS.ProcessEnv): string {
  * @returns Retained directory, including explicitly qualified debugging packages.
  */
 export async function retainDesktopCi(env: NodeJS.ProcessEnv, appRoot = resolve(import.meta.dirname, '..')): Promise<string> {
-  const target = resolveDesktopBuildTarget(env)
+  const target = releaseTarget(resolveDesktopBuildTarget(env))
   const runnerLabel = resolveDesktopRetentionRunner(env)
   const windows = target === 'win-x64'
   const platform = windows ? 'win32' : 'darwin'

@@ -73,6 +73,13 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 
 let focusPrimaryWindow = (): void => {}
+const DESKTOP_OPEN_URLS = new Set(['dsh://open', 'dsh://open/'])
+
+/** Recognize the protocol activation URLs that focus the application. */
+function isDesktopOpenUrl(url: string): boolean {
+  return DESKTOP_OPEN_URLS.has(url)
+}
+
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
 let shuttingDown = false
 /**
@@ -1240,8 +1247,13 @@ async function main(): Promise<void> {
     tray?.relabel()
   }
   refreshApplicationMenu()
-  const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
-  if (process.platform === 'win32') {
+  const trayWindows = process.platform === 'win32'
+  const trayLinux = process.platform === 'linux'
+  const trayIconName = trayWindows ? 'tray-windows.ico' : 'tray-linux.png'
+  const trayIconPath = development
+    ? join(app.getAppPath(), 'resources', trayIconName)
+    : join(process.resourcesPath, trayWindows ? 'tray.ico' : 'tray.png')
+  if (trayWindows || trayLinux) {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
       tray = new DesktopTray({ iconPath: trayIconPath, locale: currentDesktopLocale,
@@ -1488,7 +1500,7 @@ async function main(): Promise<void> {
   if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (isDesktopOpenUrl(url)) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
